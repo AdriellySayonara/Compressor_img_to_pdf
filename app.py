@@ -7,9 +7,6 @@ import zipfile
 from PIL import Image
 from fpdf import FPDF
 from PyPDF2 import PdfReader, PdfWriter
-
-
-import streamlit as st
 import time
 
 # ============================================================================
@@ -251,31 +248,7 @@ st.set_page_config(
 # MOSTRAR POPUP (só na primeira vez)
 mostrar_popup_especial()
 
-# Resto do seu código continua aqui...
-def mostrar_mensagem_especial():
-    if 'mensagem_vista' not in st.session_state:
-        st.session_state.mensagem_vista = True
-        st.markdown("""
-        <div style='
-            background: linear-gradient(135deg, #FF4081 0%, #F50057 100%);
-            color: white;
-            padding: 2rem;
-            border-radius: 15px;
-            margin: 2rem 0;
-            text-align: center;
-            box-shadow: 0 8px 25px rgba(245, 0, 87, 0.2);
-        '>
-            <h3 style='margin: 0 0 1rem 0;'>Para Você, Francisco</h3>
-            <p style='margin: 0; font-size: 1.1rem;'>
-                Uma ferramenta feita com carinho para facilitar seu trabalho.<br>
-                Espero que seja útil no seu dia a dia!
-            </p>
-            <p style='margin: 1rem 0 0 0; font-style: italic;'>— Com amor, Adrielly</p>
-        </div>
-        """, unsafe_allow_html=True)
 
-# E chame a função antes do cabeçalho:
-mostrar_mensagem_especial()
 
 
 # ============================================================================
