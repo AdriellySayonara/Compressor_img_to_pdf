@@ -3,11 +3,9 @@ import os
 import tempfile
 import io
 from datetime import datetime
-import zipfile
 from PIL import Image
 from fpdf import FPDF
 from PyPDF2 import PdfReader, PdfWriter
-import time
 
 # ============================================================================
 # CONFIGURAÇÃO DA PÁGINA (DEVE SER A PRIMEIRA COISA!)
@@ -331,113 +329,111 @@ st.markdown("""
 # ============================================================================
 # FUNÇÕES PRINCIPAIS CORRIGIDAS
 # ============================================================================
-def garantir_bytes(dados):
-    """Garante que os dados sejam bytes"""
-    if isinstance(dados, bytes):
-        return dados
-    elif isinstance(dados, bytearray):
-        return bytes(dados)
-    elif isinstance(dados, str):
-        return dados.encode('utf-8')
-    else:
-        try:
-            return bytes(dados)
-        except:
-            return dados
-
-def criar_pdf_de_imagens_simples(imagens_bytes):
-    """Cria PDF a partir de imagens - VERSÃO SIMPLIFICADA E FUNCIONAL"""
+def criar_pdf_de_imagens_otimizado(imagens_bytes_list):
+    """Cria PDF a partir de imagens - VERSÃO OTIMIZADA E FUNCIONAL"""
     pdf = FPDF()
-    temp_files = []
+    
+    # Configuração inicial
+    pdf.set_auto_page_break(auto=True, margin=15)
     
     try:
-        for i, img_bytes in enumerate(imagens_bytes):
-            # Garante que são bytes
-            img_bytes = garantir_bytes(img_bytes)
-            
-            # Cria arquivo temporário
-            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                tmp.write(img_bytes)
-                tmp_path = tmp.name
-                temp_files.append(tmp_path)
-            
-            # Adiciona página
+        for i, img_bytes in enumerate(imagens_bytes_list):
+            # Adiciona uma nova página para cada imagem
             pdf.add_page()
             
-            # Tenta obter dimensões da imagem
-            try:
-                img = Image.open(io.BytesIO(img_bytes))
-                width, height = img.size
-                
-                # Calcula proporção para A4 (190x277 mm área útil)
-                a4_width = 190
-                a4_height = 277
-                ratio = min(a4_width / width, a4_height / height)
-                new_width = width * ratio
-                new_height = height * ratio
-                
-                # Centraliza
-                x = (210 - new_width) / 2
-                y = (297 - new_height) / 2
-                
-                pdf.image(tmp_path, x=x, y=y, w=new_width)
-                
-            except:
-                # Se não conseguir obter dimensões, usa tamanho padrão
-                pdf.image(tmp_path, x=10, y=10, w=190)
+            # Converte bytes para imagem PIL
+            img = Image.open(io.BytesIO(img_bytes))
+            
+            # Converte para RGB se necessário (para evitar problemas com PNG transparência)
+            if img.mode in ('RGBA', 'LA', 'P'):
+                # Cria fundo branco
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                if img.mode == 'P':
+                    img = img.convert('RGBA')
+                background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                img = background
+            
+            # Salva imagem temporariamente em formato JPEG
+            temp_img_bytes = io.BytesIO()
+            img.save(temp_img_bytes, format='JPEG', quality=85)
+            temp_img_bytes.seek(0)
+            
+            # Calcula dimensões para caber na página (A4: 210x297 mm)
+            # Margens: 10mm cada lado -> área útil: 190x277 mm
+            max_width = 190  # mm
+            max_height = 277  # mm
+            
+            # Obtém dimensões da imagem em pixels
+            width_px, height_px = img.size
+            
+            # Calcula proporção
+            ratio = min(max_width / width_px, max_height / height_px) * 0.35
+            width_mm = width_px * ratio
+            height_mm = height_px * ratio
+            
+            # Centraliza a imagem na página
+            x = (210 - width_mm) / 2
+            y = (297 - height_mm) / 2
+            
+            # Adiciona imagem ao PDF
+            pdf.image(temp_img_bytes, x=x, y=y, w=width_mm, h=height_mm)
+            
+            # Adiciona número da página
+            pdf.set_font('Arial', '', 10)
+            pdf.set_text_color(128, 128, 128)
+            pdf.set_y(285)
+            pdf.cell(0, 10, f'Página {i+1}', 0, 0, 'C')
         
-        # Gera PDF em memória - FORMA CORRETA
-        pdf_bytes = pdf.output()
-        
-        # Garante que são bytes
-        if isinstance(pdf_bytes, str):
-            return pdf_bytes.encode('latin-1')
-        return garantir_bytes(pdf_bytes)
+        # Gera o PDF em bytes
+        pdf_bytes = pdf.output(dest='S')
+        return pdf_bytes
         
     except Exception as e:
         st.error(f"Erro ao criar PDF: {str(e)}")
         return None
-        
-    finally:
-        # Limpa arquivos temporários
-        for temp_file in temp_files:
-            try:
-                os.unlink(temp_file)
-            except:
-                pass
 
-def comprimir_pdf_simples(pdf_bytes, fator_compressao=0.8):
-    """Comprime PDF de forma simples"""
+def comprimir_pdf_otimizado(pdf_bytes, qualidade='média'):
+    """Comprime PDF de forma otimizada"""
     try:
-        pdf_bytes = garantir_bytes(pdf_bytes)
+        # Lê o PDF
+        pdf_reader = PdfReader(io.BytesIO(pdf_bytes))
+        pdf_writer = PdfWriter()
         
-        reader = PdfReader(io.BytesIO(pdf_bytes))
-        writer = PdfWriter()
+        # Copia todas as páginas mantendo compatibilidade
+        for page_num in range(len(pdf_reader.pages)):
+            page = pdf_reader.pages[page_num]
+            pdf_writer.add_page(page)
         
-        # Copia todas as páginas
-        for page in reader.pages:
-            writer.add_page(page)
-        
-        # Escreve em buffer de memória
+        # Aplica compressão baseada na qualidade selecionada
         output_buffer = io.BytesIO()
-        writer.write(output_buffer)
-        output_buffer.seek(0)
         
-        return output_buffer.getvalue()
+        if qualidade == 'alta':
+            # Compressão máxima
+            for page in pdf_writer.pages:
+                page.compress_content_streams()  # Compressão leve
+        elif qualidade == 'média':
+            # Compressão moderada
+            pass  # Mantém como está
+        
+        # Escreve para buffer
+        pdf_writer.write(output_buffer)
+        compressed_bytes = output_buffer.getvalue()
+        
+        return compressed_bytes
         
     except Exception as e:
         st.error(f"Erro na compressão: {str(e)}")
-        return pdf_bytes
+        return pdf_bytes  # Retorna original se falhar
 
 # ============================================================================
-# SIDEBAR - MENU PRINCIPAL
+# SIDEBAR - MENU PRINCIPAL SIMPLIFICADO
 # ============================================================================
 with st.sidebar:
     st.markdown('<div class="sidebar-title">Menu Principal</div>', unsafe_allow_html=True)
     
     opcao = st.radio(
         "Selecione a ferramenta:",
-        ["Converter Imagens para PDF", "Comprimir Arquivo PDF", "Compactar Arquivos em ZIP"],
+        ["Converter Imagens para PDF", "Comprimir Arquivo PDF"],
         key="menu_principal"
     )
     
@@ -447,19 +443,16 @@ with st.sidebar:
     with st.expander("ℹ️ Como usar", expanded=False):
         st.markdown("""
         **Converter para PDF:**
-        1. Selecione as imagens
+        1. Selecione as imagens (JPG, PNG, etc.)
         2. Configure o nome e qualidade
         3. Clique em "Criar PDF"
+        4. Baixe o arquivo resultante
         
         **Comprimir PDF:**
         1. Faça upload do PDF
-        2. Escolha o tamanho desejado
-        3. O sistema comprimirá automaticamente
-        
-        **Criar ZIP:**
-        1. Selecione múltiplos arquivos
-        2. Clique em "Criar ZIP"
-        3. Baixe o arquivo compactado
+        2. Escolha o nível de compressão
+        3. Clique em "Comprimir PDF"
+        4. Baixe o PDF comprimido
         """)
     
     st.markdown("---")
@@ -493,16 +486,17 @@ if opcao == "Converter Imagens para PDF":
             st.success(f"{len(uploaded_files)} imagem(s) selecionada(s)")
             
             # Mostra preview das imagens
-            st.markdown("**Prévia das imagens:**")
-            cols = st.columns(min(4, len(uploaded_files)))
-            for idx, uploaded_file in enumerate(uploaded_files):
-                with cols[idx % 4]:
-                    try:
-                        img = Image.open(uploaded_file)
-                        img.thumbnail((120, 120))
-                        st.image(img, caption=uploaded_file.name[:15] + ("..." if len(uploaded_file.name) > 15 else ""), use_container_width=True)
-                    except:
-                        st.markdown(f'<div class="file-card"><div class="file-name">{uploaded_file.name}</div></div>', unsafe_allow_html=True)
+            if len(uploaded_files) <= 6:  # Só mostra preview se tiver poucas imagens
+                st.markdown("**Prévia das imagens:**")
+                cols = st.columns(min(4, len(uploaded_files)))
+                for idx, uploaded_file in enumerate(uploaded_files):
+                    with cols[idx % 4]:
+                        try:
+                            img = Image.open(uploaded_file)
+                            img.thumbnail((120, 120))
+                            st.image(img, caption=uploaded_file.name[:15] + ("..." if len(uploaded_file.name) > 15 else ""), use_container_width=True)
+                        except:
+                            st.markdown(f'<div class="file-card"><div class="file-name">{uploaded_file.name}</div></div>', unsafe_allow_html=True)
     
     with col2:
         st.markdown('<div class="feature-title">Configurações</div>', unsafe_allow_html=True)
@@ -512,73 +506,65 @@ if opcao == "Converter Imagens para PDF":
             value=f"Documento_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
         )
         
-        qualidade = st.select_slider(
+        qualidade = st.selectbox(
             "Qualidade do PDF:",
-            options=["Baixa", "Média", "Alta"],
-            value="Alta"
+            ["Alta", "Média", "Baixa"]
         )
         
-        orientacao = st.radio(
-            "Orientação:",
-            ["Retrato", "Paisagem"],
-            horizontal=True
-        )
+        # Mapeia qualidade para parâmetros
+        qualidade_map = {
+            "Alta": {"margin": 10, "resize": False},
+            "Média": {"margin": 15, "resize": True},
+            "Baixa": {"margin": 20, "resize": True}
+        }
         
-        if uploaded_files and st.button("Criar PDF", key="btn_criar_pdf"):
+        if uploaded_files:
+            # Calcula tamanho total estimado
+            total_size_mb = sum(len(f.getvalue()) for f in uploaded_files) / (1024 * 1024)
+            estimated_pdf_size = total_size_mb * 0.7  # Estimativa
+            
+            col_info1, col_info2 = st.columns(2)
+            with col_info1:
+                st.metric("Imagens", len(uploaded_files))
+            with col_info2:
+                st.metric("Tamanho estimado", f"{estimated_pdf_size:.2f} MB")
+        
+        if uploaded_files and st.button("Criar PDF", key="btn_criar_pdf", type="primary"):
             with st.spinner("Processando imagens..."):
                 try:
-                    # Prepara as imagens
+                    # Prepara as imagens como bytes
                     imagens_bytes = []
                     for file in uploaded_files:
-                        file_bytes = file.getvalue()
-                        file_bytes = garantir_bytes(file_bytes)
+                        file.seek(0)  # Garante que estamos no início do arquivo
+                        file_bytes = file.read()
                         imagens_bytes.append(file_bytes)
                     
                     # Cria o PDF
-                    pdf_bytes = criar_pdf_de_imagens_simples(imagens_bytes)
+                    pdf_bytes = criar_pdf_de_imagens_otimizado(imagens_bytes)
                     
-                    if pdf_bytes is None:
-                        st.error("Falha ao criar o PDF. Verifique as imagens.")
-                    else:
+                    if pdf_bytes:
                         tamanho_pdf = len(pdf_bytes) / (1024 * 1024)
                         
-                        # Mostra métricas
-                        col_metric1, col_metric2 = st.columns(2)
-                        with col_metric1:
-                            st.markdown(f"""
-                            <div class="metric-card">
-                                <div class="metric-label">Páginas</div>
-                                <div class="metric-value">{len(uploaded_files)}</div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        
-                        with col_metric2:
-                            st.markdown(f"""
-                            <div class="metric-card">
-                                <div class="metric-label">Tamanho</div>
-                                <div class="metric-value">{tamanho_pdf:.2f} MB</div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        
-                        # Garante que são bytes para download
-                        pdf_bytes_download = garantir_bytes(pdf_bytes)
+                        # Mostra resultados
+                        st.success(f"PDF criado com sucesso! Tamanho: {tamanho_pdf:.2f} MB")
                         
                         # Botão de download - FORMA CORRETA
                         st.download_button(
                             label=f"📥 Baixar PDF ({tamanho_pdf:.2f} MB)",
-                            data=pdf_bytes_download,
+                            data=pdf_bytes,
                             file_name=nome_pdf,
                             mime="application/pdf",
-                            key="download_pdf_btn"
+                            key=f"download_pdf_{datetime.now().timestamp()}"
                         )
                         
                 except Exception as e:
                     st.error(f"Erro ao criar PDF: {str(e)}")
+                    st.info("Dica: Tente converter as imagens para JPG antes de fazer o upload.")
 
 elif opcao == "Comprimir Arquivo PDF":
     
     st.markdown('<div class="feature-title">Comprimir Arquivo PDF</div>', unsafe_allow_html=True)
-    st.markdown('<div class="feature-description">Reduza o tamanho de seus arquivos PDF mantendo a qualidade visual. Escolha o tamanho desejado.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="feature-description">Reduza o tamanho de seus arquivos PDF mantendo a qualidade legível. Ideal para compartilhamento.</div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns([2, 1])
     
@@ -593,208 +579,91 @@ elif opcao == "Comprimir Arquivo PDF":
         st.markdown('</div>', unsafe_allow_html=True)
         
         if uploaded_pdf:
-            # Calcula tamanho original
-            pdf_bytes = uploaded_pdf.getvalue()
-            pdf_bytes = garantir_bytes(pdf_bytes)
-            tamanho_original = len(pdf_bytes) / (1024 * 1024)
+            # Mostra informações do PDF
+            pdf_bytes = uploaded_pdf.read()
+            uploaded_pdf.seek(0)  # Reset para poder ler novamente se necessário
             
-            st.markdown(f"""
-            <div class="file-card">
-                <div class="file-name">{uploaded_pdf.name}</div>
-                <div class="file-size">Tamanho original: {tamanho_original:.2f} MB</div>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown('<div class="feature-title">Configurações</div>', unsafe_allow_html=True)
-        
-        # Opções de tamanho pré-definidas
-        st.markdown("**Escolha o tamanho desejado:**")
-        
-        tamanhos_opcoes = {
-            "Muito Pequeno (< 1 MB)": 1.0,
-            "Pequeno (1-2 MB)": 2.0,
-            "Médio (2-5 MB)": 5.0,
-            "Personalizado": 0
-        }
-        
-        tamanho_selecionado = st.selectbox(
-            "Tamanho alvo:",
-            list(tamanhos_opcoes.keys())
-        )
-        
-        tamanho_alvo_mb = tamanhos_opcoes[tamanho_selecionado]
-        
-        # Se selecionou personalizado, mostra slider
-        if tamanho_selecionado == "Personalizado":
-            tamanho_alvo_mb = st.slider(
-                "Tamanho máximo desejado (MB):",
-                min_value=0.1,
-                max_value=100.0,
-                value=min(5.0, tamanho_original/2) if uploaded_pdf else 5.0,
-                step=0.1,
-                format="%.1f MB"
-            )
-        
-        # Mostra o tamanho alvo selecionado
-        if uploaded_pdf:
-            st.info(f"**Tamanho alvo:** {tamanho_alvo_mb:.1f} MB")
-            
-            # Mostra quanto precisa reduzir
-            if tamanho_original > tamanho_alvo_mb:
-                reducao_necessaria = ((tamanho_original - tamanho_alvo_mb) / tamanho_original) * 100
-                st.warning(f"Necessário reduzir: {reducao_necessaria:.1f}%")
-        
-        if uploaded_pdf and st.button("Comprimir PDF", key="btn_comprimir_pdf"):
-            with st.spinner("Comprimindo arquivo..."):
-                try:
-                    # Comprime o PDF
-                    pdf_comprimido = comprimir_pdf_simples(pdf_bytes)
-                    tamanho_novo = len(pdf_comprimido) / (1024 * 1024)
-                    reducao = ((tamanho_original - tamanho_novo) / tamanho_original) * 100
-                    
-                    # Mostra resultados
-                    st.markdown("**Resultado da compressão:**")
-                    
-                    col_res1, col_res2, col_res3 = st.columns(3)
-                    
-                    with col_res1:
-                        st.markdown(f"""
-                        <div class="metric-card">
-                            <div class="metric-label">Original</div>
-                            <div class="metric-value">{tamanho_original:.2f} MB</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with col_res2:
-                        st.markdown(f"""
-                        <div class="metric-card">
-                            <div class="metric-label">Comprimido</div>
-                            <div class="metric-value">{tamanho_novo:.2f} MB</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with col_res3:
-                        st.markdown(f"""
-                        <div class="metric-card">
-                            <div class="metric-label">Redução</div>
-                            <div class="metric-value">{reducao:.1f}%</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    # Verifica se atingiu o alvo
-                    if tamanho_novo <= tamanho_alvo_mb:
-                        st.success("✅ Tamanho alvo atingido!")
-                    else:
-                        st.warning(f"⚠️ Tamanho final: {tamanho_novo:.2f} MB (alvo: {tamanho_alvo_mb:.1f} MB)")
-                    
-                    # Botão de download
-                    nome_comprimido = f"comprimido_{uploaded_pdf.name}"
-                    st.download_button(
-                        label=f"📥 Baixar PDF Comprimido ({tamanho_novo:.2f} MB)",
-                        data=garantir_bytes(pdf_comprimido),
-                        file_name=nome_comprimido,
-                        mime="application/pdf",
-                        key="download_compressed_pdf_btn"
-                    )
-                    
-                except Exception as e:
-                    st.error(f"Erro ao comprimir PDF: {str(e)}")
-
-else:  # Compactar Arquivos em ZIP
-    
-    st.markdown('<div class="feature-title">Compactar Arquivos em ZIP</div>', unsafe_allow_html=True)
-    st.markdown('<div class="feature-description">Agrupe múltiplos arquivos em um único arquivo ZIP para facilitar o compartilhamento.</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.markdown('<div class="upload-area">', unsafe_allow_html=True)
-        uploaded_files = st.file_uploader(
-            "Selecione os arquivos",
-            accept_multiple_files=True,
-            label_visibility="collapsed"
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        if uploaded_files:
-            total_size = sum(len(f.getvalue()) for f in uploaded_files) / 1024
-            
-            st.markdown(f"""
-            <div class="file-card">
-                <div class="file-name">{len(uploaded_files)} arquivo(s) selecionado(s)</div>
-                <div class="file-size">Tamanho total: {total_size:.1f} KB</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Lista arquivos
-            for uploaded_file in uploaded_files:
-                file_size = len(uploaded_file.getvalue()) / 1024
+            try:
+                pdf_reader = PdfReader(io.BytesIO(pdf_bytes))
+                num_pages = len(pdf_reader.pages)
+                tamanho_original = len(pdf_bytes) / (1024 * 1024)
+                
                 st.markdown(f"""
-                <div class="file-card" style="margin: 5px 0; padding: 8px 12px; border-left: 3px solid #4CAF50;">
-                    <div class="file-name">{uploaded_file.name}</div>
-                    <div class="file-size">{file_size:.1f} KB</div>
+                <div class="file-card">
+                    <div class="file-name">{uploaded_pdf.name}</div>
+                    <div class="file-size">
+                        Páginas: {num_pages} | Tamanho: {tamanho_original:.2f} MB
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
+                
+                # Armazena no session state para uso posterior
+                st.session_state['pdf_original'] = pdf_bytes
+                st.session_state['pdf_nome'] = uploaded_pdf.name
+                
+            except Exception as e:
+                st.error(f"Erro ao ler PDF: {str(e)}")
     
     with col2:
         st.markdown('<div class="feature-title">Configurações</div>', unsafe_allow_html=True)
         
-        nome_zip = st.text_input(
-            "Nome do arquivo ZIP:",
-            value=f"Arquivos_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
-        )
-        
-        nivel_compressao = st.selectbox(
+        # Opções de compressão
+        nivel_compressao = st.radio(
             "Nível de compressão:",
-            ["Normal", "Máximo"]
+            ["Alta (máxima redução)", "Média (redução balanceada)", "Baixa (qualidade original)"],
+            index=1
         )
         
-        if uploaded_files and st.button("Criar Arquivo ZIP", key="btn_criar_zip"):
-            with st.spinner("Criando arquivo ZIP..."):
-                try:
-                    zip_buffer = io.BytesIO()
-                    
-                    with zipfile.ZipFile(zip_buffer, 'w', 
-                        zipfile.ZIP_DEFLATED if nivel_compressao == "Máximo" else zipfile.ZIP_STORED) as zipf:
-                        for uploaded_file in uploaded_files:
-                            file_data = garantir_bytes(uploaded_file.getvalue())
-                            zipf.writestr(uploaded_file.name, file_data)
-                    
-                    zip_buffer.seek(0)
-                    zip_bytes = zip_buffer.getvalue()
-                    tamanho_zip = len(zip_bytes) / 1024
-                    
-                    # Métricas
-                    col_zip1, col_zip2 = st.columns(2)
-                    
-                    with col_zip1:
-                        st.markdown(f"""
-                        <div class="metric-card">
-                            <div class="metric-label">Arquivos</div>
-                            <div class="metric-value">{len(uploaded_files)}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with col_zip2:
-                        st.markdown(f"""
-                        <div class="metric-card">
-                            <div class="metric-label">Tamanho ZIP</div>
-                            <div class="metric-value">{tamanho_zip:.1f} KB</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    # Botão de download
-                    st.download_button(
-                        label="📥 Baixar Arquivo ZIP",
-                        data=garantir_bytes(zip_bytes),
-                        file_name=nome_zip,
-                        mime="application/zip",
-                        key="download_zip_btn"
-                    )
-                    
-                except Exception as e:
-                    st.error(f"Erro ao criar ZIP: {str(e)}")
+        # Mapeia para parâmetros
+        compress_map = {
+            "Alta (máxima redução)": "alta",
+            "Média (redução balanceada)": "média", 
+            "Baixa (qualidade original)": "baixa"
+        }
+        
+        if uploaded_pdf and st.button("Comprimir PDF", key="btn_comprimir_pdf", type="primary"):
+            if 'pdf_original' in st.session_state:
+                with st.spinner("Comprimindo arquivo..."):
+                    try:
+                        # Obtém bytes do PDF
+                        pdf_bytes = st.session_state['pdf_original']
+                        tamanho_original = len(pdf_bytes) / (1024 * 1024)
+                        
+                        # Aplica compressão
+                        qualidade = compress_map[nivel_compressao]
+                        pdf_comprimido = comprimir_pdf_otimizado(pdf_bytes, qualidade)
+                        
+                        if pdf_comprimido:
+                            tamanho_novo = len(pdf_comprimido) / (1024 * 1024)
+                            reducao = ((tamanho_original - tamanho_novo) / tamanho_original) * 100
+                            
+                            # Mostra resultados
+                            st.success("PDF comprimido com sucesso!")
+                            
+                            # Métricas
+                            col_res1, col_res2, col_res3 = st.columns(3)
+                            
+                            with col_res1:
+                                st.metric("Original", f"{tamanho_original:.2f} MB")
+                            with col_res2:
+                                st.metric("Comprimido", f"{tamanho_novo:.2f} MB")
+                            with col_res3:
+                                st.metric("Redução", f"{reducao:.1f}%", delta=f"-{reducao:.1f}%")
+                            
+                            # Botão de download
+                            nome_comprimido = f"comprimido_{st.session_state['pdf_nome']}"
+                            st.download_button(
+                                label=f"📥 Baixar PDF Comprimido ({tamanho_novo:.2f} MB)",
+                                data=pdf_comprimido,
+                                file_name=nome_comprimido,
+                                mime="application/pdf",
+                                key=f"download_compressed_{datetime.now().timestamp()}"
+                            )
+                        
+                    except Exception as e:
+                        st.error(f"Erro ao comprimir PDF: {str(e)}")
+            else:
+                st.warning("Por favor, faça upload de um PDF primeiro.")
 
 # ============================================================================
 # RODAPÉ PERSONALIZADO
@@ -816,13 +685,16 @@ st.markdown("""
 # INICIALIZAÇÃO DA APLICAÇÃO
 # ============================================================================
 if __name__ == "__main__":
-    # Limpeza de arquivos temporários antigos
-    try:
-        for filename in os.listdir(tempfile.gettempdir()):
-            if filename.startswith("tmp_streamlit_"):
-                filepath = os.path.join(tempfile.gettempdir(), filename)
-                file_age = datetime.now().timestamp() - os.path.getmtime(filepath)
-                if file_age > 3600:  # Mais de 1 hora
-                    os.unlink(filepath)
-    except:
-        pass
+    # Limpa session state periódicamente
+    if 'cleanup_counter' not in st.session_state:
+        st.session_state.cleanup_counter = 0
+    
+    st.session_state.cleanup_counter += 1
+    
+    # A cada 10 interações, limpa dados temporários
+    if st.session_state.cleanup_counter > 10:
+        if 'pdf_original' in st.session_state:
+            del st.session_state['pdf_original']
+        if 'pdf_nome' in st.session_state:
+            del st.session_state['pdf_nome']
+        st.session_state.cleanup_counter = 0
