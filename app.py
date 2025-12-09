@@ -245,10 +245,75 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# MOSTRAR POPUP (só na primeira vez)
-mostrar_popup_especial()
+def mostrar_popup_simples():
+    """Versão mais simples e confiável"""
+    
+    if 'popup_visto' not in st.session_state:
+        st.session_state.popup_visto = True
+        
+        # Usa columns para centralizar
+        col1, col2, col3 = st.columns([1, 2, 1])
+        
+        with col2:
+            # Container com estilo de modal
+            container = st.container()
+            with container:
+                st.markdown("""
+                <div style='
+                    background: white;
+                    border-radius: 15px;
+                    padding: 2rem;
+                    margin: 2rem 0;
+                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                    border: 2px solid #e0e0e0;
+                    text-align: center;
+                    position: relative;
+                '>
+                    <h2 style='color: #1a237e; margin-bottom: 1rem;'>
+                        Olá, Francisco Matos
+                    </h2>
+                    
+                    <p style='color: #444; line-height: 1.6; margin-bottom: 1.5rem;'>
+                        Desenvolvi esta ferramenta pensando em facilitar seu trabalho.<br>
+                        Espero que seja muito útil para você!
+                    </p>
+                    
+                    <p style='color: #666; font-style: italic; margin-top: 1.5rem;'>
+                        — Com Amor, Adrielly
+                    </p>
+                    
+                    <div style='margin-top: 1.5rem;'>
+                        <button onclick="this.parentElement.parentElement.style.display='none'" 
+                        style='
+                            background: #1a237e;
+                            color: white;
+                            border: none;
+                            padding: 10px 30px;
+                            border-radius: 25px;
+                            cursor: pointer;
+                            font-weight: 500;
+                        '>
+                            Começar a usar
+                        </button>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Adiciona um overlay escuro
+        st.markdown("""
+        <div style='
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9998;
+        '></div>
+        """, unsafe_allow_html=True)
 
-
+# Chame assim:
+mostrar_popup_simples()
 
 
 # ============================================================================
