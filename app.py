@@ -5,514 +5,641 @@ import io
 from datetime import datetime
 import zipfile
 from PIL import Image
-import base64
+from fpdf import FPDF
+from PyPDF2 import PdfReader, PdfWriter
 
-# Configurações da página
+# Adicione esta função após as importações
+def mostrar_mensagem_especial():
+    if 'mensagem_vista' not in st.session_state:
+        st.session_state.mensagem_vista = True
+        st.markdown("""
+        <div style='
+            background: linear-gradient(135deg, #FF4081 0%, #F50057 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 15px;
+            margin: 2rem 0;
+            text-align: center;
+            box-shadow: 0 8px 25px rgba(245, 0, 87, 0.2);
+        '>
+            <h3 style='margin: 0 0 1rem 0;'>Para Você, Francisco</h3>
+            <p style='margin: 0; font-size: 1.1rem;'>
+                Uma ferramenta feita com carinho para facilitar seu trabalho.<br>
+                Espero que seja útil no seu dia a dia! Te amo. 
+            </p>
+            <p style='margin: 1rem 0 0 0; font-style: italic;'>— Com amor, Adrielly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+# E chame a função antes do cabeçalho:
+mostrar_mensagem_especial()
+
+# ============================================================================
+# CONFIGURAÇÃO DA PÁGINA
+# ============================================================================
 st.set_page_config(
-    page_title="Conversor Online",
-    page_icon="🔄",
-    layout="wide"
+    page_title="Conversor de Arquivos - Francisco Matos",
+    page_icon="📄",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# CSS moderno
+# ============================================================================
+# CSS PERSONALIZADO - ESTILO ELEGANTE
+# ============================================================================
 st.markdown("""
 <style>
+    /* Fonte principal */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    * {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Cabeçalho personalizado */
     .main-header {
-        text-align: center;
-        padding: 2rem;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+        padding: 2.5rem;
+        border-radius: 0 0 20px 20px;
         color: white;
-        border-radius: 10px;
         margin-bottom: 2rem;
+        box-shadow: 0 4px 20px rgba(26, 35, 126, 0.15);
     }
+    
+    .welcome-text {
+        font-size: 2.8rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.5px;
+    }
+    
+    .subtitle {
+        font-size: 1.2rem;
+        font-weight: 300;
+        opacity: 0.9;
+    }
+    
+    /* Cards de funcionalidades */
     .feature-card {
-        padding: 1.5rem;
-        border-radius: 10px;
         background: white;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        margin-bottom: 1rem;
-        border-left: 5px solid #667eea;
+        border-radius: 12px;
+        padding: 1.8rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #e0e0e0;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     }
+    
+    .feature-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
+    
+    .feature-title {
+        color: #1a237e;
+        font-size: 1.4rem;
+        font-weight: 600;
+        margin-bottom: 0.8rem;
+        border-left: 4px solid #3949ab;
+        padding-left: 12px;
+    }
+    
+    .feature-description {
+        color: #555;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        margin-bottom: 1.2rem;
+    }
+    
+    /* Botões elegantes */
     .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #3949ab 0%, #1a237e 100%);
         color: white;
         border: none;
-        padding: 0.75rem 1.5rem;
+        padding: 12px 28px;
         border-radius: 8px;
-        font-weight: bold;
-        transition: all 0.3s;
+        font-weight: 500;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        width: 100%;
     }
+    
     .stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 6px 15px rgba(57, 73, 171, 0.3);
+        background: linear-gradient(135deg, #303f9f 0%, #151b5c 100%);
     }
-    .file-info {
-        background: #f8f9fa;
-        padding: 1rem;
-        border-radius: 8px;
+    
+    /* Sidebar estilizada */
+    .sidebar .sidebar-content {
+        background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+        border-right: 1px solid #eaeaea;
+    }
+    
+    .sidebar-title {
+        color: #1a237e;
+        font-weight: 600;
+        font-size: 1.3rem;
+        margin-bottom: 1.5rem;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #e0e0e0;
+    }
+    
+    /* Área de upload */
+    .upload-area {
+        border: 2px dashed #3949ab;
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        background: #f8f9ff;
         margin: 1rem 0;
+        transition: all 0.3s ease;
+    }
+    
+    .upload-area:hover {
+        background: #f0f2ff;
+        border-color: #1a237e;
+    }
+    
+    /* Cards de arquivo */
+    .file-card {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        border-left: 4px solid #3949ab;
+    }
+    
+    .file-name {
+        font-weight: 500;
+        color: #333;
+    }
+    
+    .file-size {
+        font-size: 0.85rem;
+        color: #666;
+    }
+    
+    /* Rodapé personalizado */
+    .footer {
+        background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 20px 20px 0 0;
+        margin-top: 3rem;
+        text-align: center;
+    }
+    
+    .footer-text {
+        font-size: 1rem;
+        font-weight: 300;
+        opacity: 0.9;
+    }
+    
+    .heart {
+        color: #ff4081;
+        display: inline-block;
+        animation: heartbeat 1.5s infinite;
+    }
+    
+    @keyframes heartbeat {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+    }
+    
+    /* Estilos para métricas */
+    .metric-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1.2rem;
+        text-align: center;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    }
+    
+    .metric-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #1a237e;
+        margin: 0.5rem 0;
+    }
+    
+    .metric-label {
+        font-size: 0.9rem;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Título principal
+# ============================================================================
+# CABEÇALHO PERSONALIZADO
+# ============================================================================
 st.markdown("""
 <div class="main-header">
-    <h1>🔄 Conversor de Arquivos Online</h1>
-    <p>Converta imagens para PDF e comprima arquivos de qualquer lugar</p>
+    <div class="welcome-text">Bem-vindo, Francisco Matos</div>
+    <div class="subtitle">Ferramentas úteis para converter e comprimir seus arquivos</div>
 </div>
 """, unsafe_allow_html=True)
 
-# Inicializa estado da sessão
-if 'converted_pdf' not in st.session_state:
-    st.session_state.converted_pdf = None
-if 'compressed_pdf' not in st.session_state:
-    st.session_state.compressed_pdf = None
-
-# Funções dos módulos (versões simplificadas para cloud)
-def compress_image_for_pdf(image_bytes, max_size_kb=100):
-    """Comprime imagem para PDF"""
-    img = Image.open(io.BytesIO(image_bytes))
+# ============================================================================
+# FUNÇÕES PRINCIPAIS
+# ============================================================================
+def criar_pdf_de_imagens(imagens, nome_pdf):
+    """Cria PDF a partir de imagens"""
+    pdf = FPDF()
     
-    # Converte para RGB se necessário
-    if img.mode in ('RGBA', 'LA'):
-        background = Image.new('RGB', img.size, (255, 255, 255))
-        background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
-        img = background
-    
-    # Redimensiona se necessário
-    max_dimension = 1200
-    if max(img.size) > max_dimension:
-        ratio = max_dimension / max(img.size)
-        new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
-        img = img.resize(new_size, Image.LANCZOS)
-    
-    # Comprime
-    output = io.BytesIO()
-    quality = 85
-    
-    while quality > 30:
-        output.seek(0)
-        output.truncate(0)
-        img.save(output, format='JPEG', quality=quality, optimize=True)
+    for img_bytes in imagens:
+        # Salva imagem temporariamente
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+            tmp.write(img_bytes)
+            tmp_path = tmp.name
         
-        if len(output.getvalue()) <= max_size_kb * 1024:
-            break
-        
-        quality -= 5
-    
-    return output.getvalue()
-
-def images_to_pdf_streamlit(images, progress_bar, status_text):
-    """Converte múltiplas imagens para PDF"""
-    try:
-        from fpdf import FPDF
-        import tempfile
-        
-        pdf = FPDF()
-        temp_files = []
-        
-        for i, (img_name, img_bytes) in enumerate(images):
-            progress_bar.progress((i + 1) / len(images))
-            status_text.text(f"Processando {img_name}...")
-            
-            # Comprime a imagem
-            compressed_img = compress_image_for_pdf(img_bytes)
-            
-            # Salva temporariamente
-            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                tmp.write(compressed_img)
-                temp_files.append(tmp.name)
-            
-            # Adiciona ao PDF
+        try:
+            # Adiciona página ao PDF
             pdf.add_page()
             
-            # Calcula posição
-            img = Image.open(io.BytesIO(compressed_img))
+            # Carrega imagem para obter dimensões
+            img = Image.open(io.BytesIO(img_bytes))
             width, height = img.size
             
-            a4_width = 190
-            a4_height = 267
-            ratio = min(a4_width / width, a4_height / height)
+            # Calcula dimensões para A4
+            a4_width_mm = 190
+            a4_height_mm = 267
+            ratio = min(a4_width_mm / width, a4_height_mm / height)
             new_width = width * ratio
             new_height = height * ratio
             
+            # Centraliza na página
             x = (210 - new_width) / 2
             y = (297 - new_height) / 2
             
-            pdf.image(temp_files[-1], x=x, y=y, w=new_width)
-        
-        # Gera PDF
-        pdf_bytes = pdf.output(dest='S').encode('latin-1')
-        
-        # Limpa temporários
-        for tmp_file in temp_files:
+            # Adiciona imagem ao PDF
+            pdf.image(tmp_path, x=x, y=y, w=new_width)
+            
+        finally:
+            # Limpa arquivo temporário
             try:
-                os.unlink(tmp_file)
+                os.unlink(tmp_path)
             except:
                 pass
-        
-        return pdf_bytes
-        
-    except Exception as e:
-        raise Exception(f"Erro na conversão: {str(e)}")
+    
+    return pdf.output(dest='S').encode('latin-1')
 
-def compress_pdf_streamlit(pdf_bytes, target_size_mb, progress_bar, status_text):
-    """Comprime PDF"""
-    try:
-        from PyPDF2 import PdfReader, PdfWriter
-        
-        original_size = len(pdf_bytes) / (1024 * 1024)
-        
-        # Tentativa 1: Compressão simples
-        status_text.text("Aplicando compressão básica...")
-        reader = PdfReader(io.BytesIO(pdf_bytes))
-        writer = PdfWriter()
-        
-        for page in reader.pages:
-            writer.add_page(page)
-        
-        compressed = io.BytesIO()
-        writer.write(compressed)
-        compressed_bytes = compressed.getvalue()
-        
-        compressed_size = len(compressed_bytes) / (1024 * 1024)
-        
-        if compressed_size <= target_size_mb:
-            progress_bar.progress(1.0)
-            return compressed_bytes
-        
-        # Tentativa 2: Redução de qualidade
-        status_text.text("Aplicando compressão avançada...")
-        
-        # (Para versão cloud, mantemos simples)
-        # Em produção, você pode integrar pdf2image se instalar poppler
-        
-        progress_bar.progress(1.0)
-        return compressed_bytes  # Retorna o melhor possível
-        
-    except Exception as e:
-        raise Exception(f"Erro na compressão: {str(e)}")
+def comprimir_pdf(pdf_bytes):
+    """Comprime um arquivo PDF"""
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    writer = PdfWriter()
+    
+    for page in reader.pages:
+        writer.add_page(page)
+    
+    output = io.BytesIO()
+    writer.write(output)
+    return output.getvalue()
 
-# Sidebar
+# ============================================================================
+# SIDEBAR - MENU PRINCIPAL
+# ============================================================================
 with st.sidebar:
-    st.markdown("### ⚙️ Menu")
+    st.markdown('<div class="sidebar-title">Menu Principal</div>', unsafe_allow_html=True)
     
     opcao = st.radio(
-        "Escolha a ferramenta:",
-        ["📷 Imagens para PDF", "📄 Comprimir PDF", "📦 Compactar Arquivos", "ℹ️ Ajuda"]
+        "Selecione a ferramenta:",
+        ["Converter Imagens para PDF", "Comprimir Arquivo PDF", "Compactar Arquivos em ZIP"],
+        key="menu_principal"
     )
     
     st.markdown("---")
     
-    st.markdown("### 📊 Estatísticas")
-    if st.session_state.converted_pdf:
-        st.info(f"PDF pronto para download")
-    if st.session_state.compressed_pdf:
-        st.info(f"PDF comprimido pronto")
+    # Informações de uso
+    with st.expander("ℹ️ Como usar", expanded=False):
+        st.markdown("""
+        **Converter para PDF:**
+        1. Selecione as imagens
+        2. Configure o nome do arquivo
+        3. Clique em "Criar PDF"
+        
+        **Comprimir PDF:**
+        1. Faça upload do PDF
+        2. O sistema comprimirá automaticamente
+        3. Baixe a versão reduzida
+        
+        **Criar ZIP:**
+        1. Selecione múltiplos arquivos
+        2. Clique em "Criar ZIP"
+        3. Baixe o arquivo compactado
+        """)
     
     st.markdown("---")
     
-    st.markdown("""
-    ### 📱 Compatível com:
-    - ✅ Windows
-    - ✅ Mac
-    - ✅ Linux
-    - ✅ Celular
-    """)
+    # Informações do sistema
+    st.markdown("**Informações:**")
+    st.caption(f"Data: {datetime.now().strftime('%d/%m/%Y')}")
+    st.caption("Status: Sistema operacional")
 
-# Página principal baseada na seleção
-if opcao == "📷 Imagens para PDF":
-    st.markdown("## 📷 Converter Imagens para PDF")
+# ============================================================================
+# CONTEÚDO PRINCIPAL
+# ============================================================================
+if opcao == "Converter Imagens para PDF":
     
     col1, col2 = st.columns([2, 1])
     
     with col1:
+        st.markdown('<div class="feature-title">Converter Imagens para PDF</div>', unsafe_allow_html=True)
+        st.markdown('<div class="feature-description">Transforme suas imagens em um documento PDF organizado e de alta qualidade.</div>', unsafe_allow_html=True)
+        
+        st.markdown('<div class="upload-area">', unsafe_allow_html=True)
         uploaded_files = st.file_uploader(
-            "Selecione as imagens (JPG, PNG, etc.)",
-            type=['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp'],
+            "Selecione as imagens",
+            type=['jpg', 'jpeg', 'png', 'bmp', 'tiff', 'webp'],
             accept_multiple_files=True,
-            help="Arraste ou clique para selecionar múltiplas imagens"
+            label_visibility="collapsed"
         )
+        st.markdown('</div>', unsafe_allow_html=True)
         
         if uploaded_files:
-            st.success(f"✅ {len(uploaded_files)} imagem(s) selecionada(s)")
+            st.success(f"{len(uploaded_files)} imagem(s) selecionada(s)")
             
-            # Mostra preview
-            cols = st.columns(min(3, len(uploaded_files)))
+            # Mostra preview das imagens
+            st.markdown("**Prévia das imagens:**")
+            cols = st.columns(min(4, len(uploaded_files)))
             for idx, uploaded_file in enumerate(uploaded_files):
-                with cols[idx % 3]:
+                with cols[idx % 4]:
                     try:
                         img = Image.open(uploaded_file)
-                        img.thumbnail((150, 150))
-                        st.image(img, caption=uploaded_file.name, use_container_width=True)
+                        img.thumbnail((120, 120))
+                        st.image(img, caption=uploaded_file.name[:15] + ("..." if len(uploaded_file.name) > 15 else ""), use_container_width=True)
                     except:
-                        st.write(f"📄 {uploaded_file.name}")
+                        st.markdown(f'<div class="file-card"><div class="file-name">{uploaded_file.name}</div></div>', unsafe_allow_html=True)
     
     with col2:
-        st.markdown("### Configurações")
+        st.markdown('<div class="feature-title">Configurações</div>', unsafe_allow_html=True)
         
-        pdf_name = st.text_input(
-            "Nome do PDF:",
-            value=f"documento_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        nome_pdf = st.text_input(
+            "Nome do arquivo PDF:",
+            value=f"Documento_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
         )
         
-        qualidade = st.select_slider(
-            "Qualidade:",
-            options=["Baixa", "Média", "Alta"],
-            value="Média"
+        orientacao = st.selectbox(
+            "Orientação da página:",
+            ["Retrato", "Paisagem"]
         )
         
-        orientacao = st.radio(
-            "Orientação:",
-            ["Retrato", "Paisagem"],
-            horizontal=True
+        qualidade = st.slider(
+            "Qualidade do PDF:",
+            min_value=1,
+            max_value=10,
+            value=8
         )
-    
-    # Botão de conversão
-    if uploaded_files and st.button("🔄 Converter para PDF", type="primary", use_container_width=True):
-        with st.spinner("Convertendo imagens..."):
-            try:
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                
-                # Prepara imagens
-                images = []
-                for uploaded_file in uploaded_files:
-                    images.append((uploaded_file.name, uploaded_file.getvalue()))
-                
-                # Converte
-                pdf_bytes = images_to_pdf_streamlit(
-                    images,
-                    progress_bar,
-                    status_text
-                )
-                
-                # Salva no estado da sessão
-                st.session_state.converted_pdf = {
-                    'bytes': pdf_bytes,
-                    'name': pdf_name,
-                    'size': f"{len(pdf_bytes) / (1024 * 1024):.2f} MB"
-                }
-                
-                status_text.success("✅ Conversão concluída!")
-                progress_bar.empty()
-                
-            except Exception as e:
-                st.error(f"Erro: {str(e)}")
-    
-    # Download do PDF
-    if st.session_state.converted_pdf:
-        st.markdown("---")
-        st.markdown("### 📥 Download")
         
-        col_d1, col_d2, col_d3 = st.columns([2, 1, 1])
-        
-        with col_d1:
-            st.markdown(f"""
-            <div class="file-info">
-            <strong>📄 {st.session_state.converted_pdf['name']}</strong><br>
-            Tamanho: {st.session_state.converted_pdf['size']}
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col_d2:
-            # Botão de download
-            st.download_button(
-                label="⬇️ Baixar PDF",
-                data=st.session_state.converted_pdf['bytes'],
-                file_name=st.session_state.converted_pdf['name'],
-                mime="application/pdf",
-                use_container_width=True
-            )
-        
-        with col_d3:
-            # Preview do PDF (link)
-            st.markdown("[👁️ Visualizar PDF](#)" , unsafe_allow_html=True)
-
-elif opcao == "📄 Comprimir PDF":
-    st.markdown("## 📄 Comprimir PDF")
-    
-    uploaded_pdf = st.file_uploader(
-        "Selecione um arquivo PDF",
-        type=['pdf'],
-        accept_multiple_files=False
-    )
-    
-    if uploaded_pdf:
-        file_size = len(uploaded_pdf.getvalue()) / (1024 * 1024)
-        
-        col_info, col_config = st.columns([1, 1])
-        
-        with col_info:
-            st.markdown(f"""
-            <div class="file-info">
-            <strong>📊 Informações do arquivo:</strong><br>
-            • Nome: {uploaded_pdf.name}<br>
-            • Tamanho: {file_size:.2f} MB<br>
-            • Páginas: Verificando...
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col_config:
-            target_size = st.slider(
-                "Tamanho alvo (MB):",
-                min_value=0.1,
-                max_value=100.0,
-                value=max(0.1, file_size / 2),
-                step=0.1,
-                format="%.1f MB"
-            )
-            
-            metodo = st.selectbox(
-                "Método de compressão:",
-                ["Inteligente (recomendado)", "Máxima", "Personalizada"]
-            )
-        
-        if st.button("🎯 Comprimir PDF", type="primary", use_container_width=True):
-            with st.spinner("Comprimindo..."):
+        if uploaded_files and st.button("Criar PDF", key="btn_criar_pdf"):
+            with st.spinner("Processando imagens..."):
                 try:
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
+                    # Prepara as imagens
+                    imagens_bytes = [file.getvalue() for file in uploaded_files]
                     
-                    compressed_bytes = compress_pdf_streamlit(
-                        uploaded_pdf.getvalue(),
-                        target_size,
-                        progress_bar,
-                        status_text
+                    # Cria o PDF
+                    pdf_bytes = criar_pdf_de_imagens(imagens_bytes, nome_pdf)
+                    tamanho_pdf = len(pdf_bytes) / (1024 * 1024)
+                    
+                    # Mostra métricas
+                    col_metric1, col_metric2 = st.columns(2)
+                    with col_metric1:
+                        st.markdown(f"""
+                        <div class="metric-card">
+                            <div class="metric-label">Páginas</div>
+                            <div class="metric-value">{len(uploaded_files)}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with col_metric2:
+                        st.markdown(f"""
+                        <div class="metric-card">
+                            <div class="metric-label">Tamanho</div>
+                            <div class="metric-value">{tamanho_pdf:.2f} MB</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # Botão de download
+                    st.download_button(
+                        label=f"Baixar PDF ({tamanho_pdf:.2f} MB)",
+                        data=pdf_bytes,
+                        file_name=nome_pdf,
+                        mime="application/pdf"
                     )
                     
-                    compressed_size = len(compressed_bytes) / (1024 * 1024)
-                    
-                    # Salva no estado
-                    st.session_state.compressed_pdf = {
-                        'bytes': compressed_bytes,
-                        'name': f"comprimido_{uploaded_pdf.name}",
-                        'original_size': file_size,
-                        'compressed_size': compressed_size,
-                        'reduction': ((file_size - compressed_size) / file_size) * 100
-                    }
+                except Exception as e:
+                    st.error(f"Erro ao criar PDF: {str(e)}")
+
+elif opcao == "Comprimir Arquivo PDF":
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown('<div class="feature-title">Comprimir Arquivo PDF</div>', unsafe_allow_html=True)
+        st.markdown('<div class="feature-description">Reduza o tamanho de seus arquivos PDF mantendo a qualidade visual.</div>', unsafe_allow_html=True)
+        
+        st.markdown('<div class="upload-area">', unsafe_allow_html=True)
+        uploaded_pdf = st.file_uploader(
+            "Selecione o arquivo PDF",
+            type=['pdf'],
+            accept_multiple_files=False,
+            label_visibility="collapsed"
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        if uploaded_pdf:
+            tamanho_original = len(uploaded_pdf.getvalue()) / (1024 * 1024)
+            
+            st.markdown(f"""
+            <div class="file-card">
+                <div class="file-name">{uploaded_pdf.name}</div>
+                <div class="file-size">Tamanho original: {tamanho_original:.2f} MB</div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown('<div class="feature-title">Configurações</div>', unsafe_allow_html=True)
+        
+        nivel_compression = st.select_slider(
+            "Nível de compressão:",
+            options=["Leve", "Moderado", "Máximo"],
+            value="Moderado"
+        )
+        
+        manter_qualidade = st.checkbox("Manter qualidade visual", value=True)
+        
+        if uploaded_pdf and st.button("Comprimir PDF", key="btn_comprimir_pdf"):
+            with st.spinner("Comprimindo arquivo..."):
+                try:
+                    # Comprime o PDF
+                    pdf_compactado = comprimir_pdf(uploaded_pdf.getvalue())
+                    tamanho_novo = len(pdf_compactado) / (1024 * 1024)
+                    reducao = ((tamanho_original - tamanho_novo) / tamanho_original) * 100
                     
                     # Mostra resultados
-                    col_r1, col_r2, col_r3 = st.columns(3)
+                    st.markdown("**Resultado da compressão:**")
                     
-                    with col_r1:
-                        st.metric("Original", f"{file_size:.2f} MB")
+                    col_res1, col_res2, col_res3 = st.columns(3)
                     
-                    with col_r2:
-                        st.metric("Comprimido", f"{compressed_size:.2f} MB")
+                    with col_res1:
+                        st.markdown(f"""
+                        <div class="metric-card">
+                            <div class="metric-label">Original</div>
+                            <div class="metric-value">{tamanho_original:.2f} MB</div>
+                        </div>
+                        """, unsafe_allow_html=True)
                     
-                    with col_r3:
-                        st.metric(
-                            "Redução", 
-                            f"{st.session_state.compressed_pdf['reduction']:.1f}%",
-                            delta=f"-{st.session_state.compressed_pdf['reduction']:.1f}%"
-                        )
+                    with col_res2:
+                        st.markdown(f"""
+                        <div class="metric-card">
+                            <div class="metric-label">Comprimido</div>
+                            <div class="metric-value">{tamanho_novo:.2f} MB</div>
+                        </div>
+                        """, unsafe_allow_html=True)
                     
-                    status_text.success("✅ Compressão concluída!")
-                    progress_bar.empty()
+                    with col_res3:
+                        st.markdown(f"""
+                        <div class="metric-card">
+                            <div class="metric-label">Redução</div>
+                            <div class="metric-value">{reducao:.1f}%</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # Botão de download
+                    nome_comprimido = f"comprimido_{uploaded_pdf.name}"
+                    st.download_button(
+                        label=f"Baixar PDF Comprimido ({tamanho_novo:.2f} MB)",
+                        data=pdf_compactado,
+                        file_name=nome_comprimido,
+                        mime="application/pdf"
+                    )
                     
                 except Exception as e:
-                    st.error(f"Erro: {str(e)}")
-    
-    # Download do PDF comprimido
-    if st.session_state.compressed_pdf:
-        st.markdown("---")
-        st.markdown("### 📥 Download Comprimido")
-        
-        st.download_button(
-            label=f"⬇️ Baixar PDF Comprimido ({st.session_state.compressed_pdf['compressed_size']:.2f} MB)",
-            data=st.session_state.compressed_pdf['bytes'],
-            file_name=st.session_state.compressed_pdf['name'],
-            mime="application/pdf",
-            use_container_width=True
-        )
+                    st.error(f"Erro ao comprimir PDF: {str(e)}")
 
-elif opcao == "📦 Compactar Arquivos":
-    st.markdown("## 📦 Compactar Arquivos em ZIP")
+else:  # Compactar Arquivos em ZIP
     
-    uploaded_files = st.file_uploader(
-        "Selecione os arquivos para compactar",
-        accept_multiple_files=True,
-        help="Segure Ctrl para selecionar múltiplos arquivos"
-    )
+    st.markdown('<div class="feature-title">Compactar Arquivos em ZIP</div>', unsafe_allow_html=True)
+    st.markdown('<div class="feature-description">Agrupe múltiplos arquivos em um único arquivo ZIP para facilitar o compartilhamento.</div>', unsafe_allow_html=True)
     
-    if uploaded_files:
-        total_size = sum(len(f.getvalue()) for f in uploaded_files) / 1024
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown('<div class="upload-area">', unsafe_allow_html=True)
+        uploaded_files = st.file_uploader(
+            "Selecione os arquivos",
+            accept_multiple_files=True,
+            label_visibility="collapsed"
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        st.info(f"📁 {len(uploaded_files)} arquivo(s) - {total_size:.1f} KB total")
+        if uploaded_files:
+            total_size = sum(len(f.getvalue()) for f in uploaded_files) / 1024
+            
+            st.markdown(f"""
+            <div class="file-card">
+                <div class="file-name">{len(uploaded_files)} arquivo(s) selecionado(s)</div>
+                <div class="file-size">Tamanho total: {total_size:.1f} KB</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Lista arquivos
+            for uploaded_file in uploaded_files:
+                file_size = len(uploaded_file.getvalue()) / 1024
+                st.markdown(f"""
+                <div class="file-card" style="margin: 5px 0; padding: 8px 12px; border-left: 3px solid #4CAF50;">
+                    <div class="file-name">{uploaded_file.name}</div>
+                    <div class="file-size">{file_size:.1f} KB</div>
+                </div>
+                """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown('<div class="feature-title">Configurações</div>', unsafe_allow_html=True)
         
-        zip_name = st.text_input(
+        nome_zip = st.text_input(
             "Nome do arquivo ZIP:",
-            value=f"arquivos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+            value=f"Arquivos_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
         )
         
-        if st.button("📦 Criar Arquivo ZIP", type="primary", use_container_width=True):
-            with st.spinner("Criando ZIP..."):
+        nivel_compressao = st.selectbox(
+            "Nível de compressão:",
+            ["Normal", "Máximo"]
+        )
+        
+        if uploaded_files and st.button("Criar Arquivo ZIP", key="btn_criar_zip"):
+            with st.spinner("Criando arquivo ZIP..."):
                 try:
                     zip_buffer = io.BytesIO()
                     
-                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    with zipfile.ZipFile(zip_buffer, 'w', 
+                        zipfile.ZIP_DEFLATED if nivel_compressao == "Máximo" else zipfile.ZIP_STORED) as zipf:
                         for uploaded_file in uploaded_files:
                             zipf.writestr(uploaded_file.name, uploaded_file.getvalue())
                     
                     zip_buffer.seek(0)
+                    zip_bytes = zip_buffer.getvalue()
+                    tamanho_zip = len(zip_bytes) / 1024
+                    
+                    # Métricas
+                    col_zip1, col_zip2 = st.columns(2)
+                    
+                    with col_zip1:
+                        st.markdown(f"""
+                        <div class="metric-card">
+                            <div class="metric-label">Arquivos</div>
+                            <div class="metric-value">{len(uploaded_files)}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with col_zip2:
+                        st.markdown(f"""
+                        <div class="metric-card">
+                            <div class="metric-label">Tamanho ZIP</div>
+                            <div class="metric-value">{tamanho_zip:.1f} KB</div>
+                        </div>
+                        """, unsafe_allow_html=True)
                     
                     # Botão de download
                     st.download_button(
-                        label=f"⬇️ Baixar {zip_name}",
-                        data=zip_buffer,
-                        file_name=zip_name,
-                        mime="application/zip",
-                        use_container_width=True
+                        label="Baixar Arquivo ZIP",
+                        data=zip_bytes,
+                        file_name=nome_zip,
+                        mime="application/zip"
                     )
                     
-                    st.success("✅ ZIP criado com sucesso!")
-                    
                 except Exception as e:
-                    st.error(f"Erro: {str(e)}")
+                    st.error(f"Erro ao criar ZIP: {str(e)}")
 
-else:  # Ajuda
-    st.markdown("## ℹ️ Ajuda e Instruções")
-    
-    st.markdown("""
-    ### 📖 Como usar:
-    
-    **1. 📷 Imagens para PDF:**
-    - Selecione múltiplas imagens
-    - Configure o nome e qualidade
-    - Clique em "Converter para PDF"
-    - Baixe o resultado
-    
-    **2. 📄 Comprimir PDF:**
-    - Faça upload de um PDF
-    - Escolha o tamanho desejado
-    - Clique em "Comprimir PDF"
-    - Baixe a versão reduzida
-    
-    **3. 📦 Compactar Arquivos:**
-    - Selecione vários arquivos
-    - Crie um ZIP para compartilhar
-    
-    ### ⚠️ Limitações:
-    - Tamanho máximo por arquivo: 200MB
-    - Suporta os formatos mais comuns
-    - Arquivos são processados na nuvem e não são armazenados
-    
-    ### 📞 Suporte:
-    Em caso de problemas, entre em contato com o administrador.
-    """)
-    
-    # QR Code para acesso mobile
-    st.markdown("### 📱 Acesse pelo celular:")
-    st.info("Use o mesmo link no navegador do seu celular")
+# ============================================================================
+# RODAPÉ PERSONALIZADO
+# ============================================================================
+st.markdown("""
+<div class="footer">
+    <div class="footer-text">
+        Criado com dedicação por Adrielly 
+        <span class="heart">❤</span>
+        <br>
+        Para facilitar seu trabalho, Francisco Matos
+        <br>
+        <small style="opacity: 0.7;">Última atualização: """ + datetime.now().strftime("%d/%m/%Y %H:%M") + """</small>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-# Rodapé
-st.markdown("---")
-st.markdown(
-    "<div style='text-align: center; color: #666;'>"
-    "🔄 Conversor Online • Feito com Streamlit • "
-    f"Última atualização: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
-    "</div>",
-    unsafe_allow_html=True
-)
+# ============================================================================
+# INICIALIZAÇÃO DA APLICAÇÃO
+# ============================================================================
+if __name__ == "__main__":
+    # Limpeza de arquivos temporários antigos
+    try:
+        for filename in os.listdir(tempfile.gettempdir()):
+            if filename.startswith("tmp_streamlit_"):
+                filepath = os.path.join(tempfile.gettempdir(), filename)
+                file_age = datetime.now().timestamp() - os.path.getmtime(filepath)
+                if file_age > 3600:  # Mais de 1 hora
+                    os.unlink(filepath)
+    except:
+        pass
