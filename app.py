@@ -265,39 +265,6 @@ st.markdown("""
         color: #666;
     }
     
-    /* Slider personalizado */
-    .stSlider > div > div > div {
-        background: #3949ab;
-    }
-    
-    .size-selector {
-        display: flex;
-        justify-content: space-between;
-        margin: 1rem 0;
-    }
-    
-    .size-option {
-        padding: 0.8rem 1.2rem;
-        border: 2px solid #e0e0e0;
-        border-radius: 8px;
-        cursor: pointer;
-        text-align: center;
-        transition: all 0.3s ease;
-        flex: 1;
-        margin: 0 0.3rem;
-    }
-    
-    .size-option:hover {
-        border-color: #3949ab;
-        background: #f8f9ff;
-    }
-    
-    .size-option.selected {
-        border-color: #3949ab;
-        background: #3949ab;
-        color: white;
-    }
-    
     /* Rodapé personalizado */
     .footer {
         background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
@@ -348,11 +315,6 @@ st.markdown("""
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
-    
-    /* Barra de progresso personalizada */
-    .stProgress > div > div > div > div {
-        background: linear-gradient(90deg, #3949ab 0%, #1a237e 100%);
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -369,80 +331,71 @@ st.markdown("""
 # ============================================================================
 # FUNÇÕES PRINCIPAIS CORRIGIDAS
 # ============================================================================
-def processar_imagem_para_pdf(img_bytes):
-    """Processa uma imagem para o formato adequado para PDF"""
-    try:
-        img = Image.open(io.BytesIO(img_bytes))
-        
-        # Converte para RGB se necessário
-        if img.mode in ('RGBA', 'LA', 'P'):
-            background = Image.new('RGB', img.size, (255, 255, 255))
-            if img.mode == 'RGBA':
-                background.paste(img, mask=img.split()[-1])
-            else:
-                background.paste(img)
-            img = background
-        
-        # Redimensiona se for muito grande
-        max_size = (1600, 1600)
-        if img.size[0] > max_size[0] or img.size[1] > max_size[1]:
-            img.thumbnail(max_size, Image.LANCZOS)
-        
-        # Salva em formato JPEG
-        img_bytes_processed = io.BytesIO()
-        img.save(img_bytes_processed, format='JPEG', quality=85, optimize=True)
-        return img_bytes_processed.getvalue()
-        
-    except Exception as e:
-        st.warning(f"Erro ao processar imagem: {str(e)[:50]}")
-        return img_bytes  # Retorna original se não conseguir processar
+def garantir_bytes(dados):
+    """Garante que os dados sejam bytes"""
+    if isinstance(dados, bytes):
+        return dados
+    elif isinstance(dados, bytearray):
+        return bytes(dados)
+    elif isinstance(dados, str):
+        return dados.encode('utf-8')
+    else:
+        try:
+            return bytes(dados)
+        except:
+            return dados
 
-def criar_pdf_de_imagens(imagens_bytes, compressao_qualidade=85):
-    """Cria PDF a partir de imagens - VERSÃO CORRIGIDA"""
+def criar_pdf_de_imagens_simples(imagens_bytes):
+    """Cria PDF a partir de imagens - VERSÃO SIMPLIFICADA E FUNCIONAL"""
     pdf = FPDF()
     temp_files = []
     
     try:
         for i, img_bytes in enumerate(imagens_bytes):
-            # Processa a imagem
-            img_bytes_processed = processar_imagem_para_pdf(img_bytes)
+            # Garante que são bytes
+            img_bytes = garantir_bytes(img_bytes)
             
-            # Salva em arquivo temporário
+            # Cria arquivo temporário
             with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                tmp.write(img_bytes_processed)
+                tmp.write(img_bytes)
                 tmp_path = tmp.name
                 temp_files.append(tmp_path)
             
-            # Adiciona página ao PDF
+            # Adiciona página
             pdf.add_page()
             
-            # Carrega imagem para obter dimensões
-            img = Image.open(io.BytesIO(img_bytes_processed))
-            width, height = img.size
-            
-            # Calcula dimensões para A4 (210x297 mm)
-            # Margens: 10mm cada lado
-            usable_width = 190  # 210 - 20
-            usable_height = 277  # 297 - 20
-            
-            # Calcula proporção para caber na página
-            width_ratio = usable_width / width
-            height_ratio = usable_height / height
-            ratio = min(width_ratio, height_ratio)
-            
-            # Novas dimensões em mm
-            new_width = width * ratio
-            new_height = height * ratio
-            
-            # Centraliza na página
-            x = (210 - new_width) / 2
-            y = (297 - new_height) / 2
-            
-            # Adiciona imagem ao PDF
-            pdf.image(tmp_path, x=x, y=y, w=new_width)
-            
+            # Tenta obter dimensões da imagem
+            try:
+                img = Image.open(io.BytesIO(img_bytes))
+                width, height = img.size
+                
+                # Calcula proporção para A4 (190x277 mm área útil)
+                a4_width = 190
+                a4_height = 277
+                ratio = min(a4_width / width, a4_height / height)
+                new_width = width * ratio
+                new_height = height * ratio
+                
+                # Centraliza
+                x = (210 - new_width) / 2
+                y = (297 - new_height) / 2
+                
+                pdf.image(tmp_path, x=x, y=y, w=new_width)
+                
+            except:
+                # Se não conseguir obter dimensões, usa tamanho padrão
+                pdf.image(tmp_path, x=10, y=10, w=190)
+        
+        # Gera PDF em memória - FORMA CORRETA
+        pdf_bytes = pdf.output()
+        
+        # Garante que são bytes
+        if isinstance(pdf_bytes, str):
+            return pdf_bytes.encode('latin-1')
+        return garantir_bytes(pdf_bytes)
+        
     except Exception as e:
-        st.error(f"Erro ao processar imagem {i+1}: {str(e)}")
+        st.error(f"Erro ao criar PDF: {str(e)}")
         return None
         
     finally:
@@ -452,57 +405,29 @@ def criar_pdf_de_imagens(imagens_bytes, compressao_qualidade=85):
                 os.unlink(temp_file)
             except:
                 pass
-    
-    # Gera o PDF
-    try:
-        pdf_output = pdf.output(dest='S')
-        # Converte para bytes se necessário
-        if isinstance(pdf_output, str):
-            return pdf_output.encode('latin-1')
-        return pdf_output
-    except Exception as e:
-        st.error(f"Erro ao gerar PDF: {str(e)}")
-        return None
 
-def comprimir_pdf_com_tamanho_alvo(pdf_bytes, tamanho_alvo_mb, qualidade_inicial=95):
-    """Comprime PDF até atingir o tamanho alvo"""
+def comprimir_pdf_simples(pdf_bytes, fator_compressao=0.8):
+    """Comprime PDF de forma simples"""
     try:
-        tamanho_atual = len(pdf_bytes) / (1024 * 1024)
-        
-        # Se já está menor que o alvo, retorna original
-        if tamanho_atual <= tamanho_alvo_mb:
-            return pdf_bytes, tamanho_atual, 0
+        pdf_bytes = garantir_bytes(pdf_bytes)
         
         reader = PdfReader(io.BytesIO(pdf_bytes))
-        
-        # Tentativa 1: Compressão simples
         writer = PdfWriter()
+        
+        # Copia todas as páginas
         for page in reader.pages:
             writer.add_page(page)
         
-        output = io.BytesIO()
-        writer.write(output)
-        compressed_bytes = output.getvalue()
-        tamanho_comprimido = len(compressed_bytes) / (1024 * 1024)
+        # Escreve em buffer de memória
+        output_buffer = io.BytesIO()
+        writer.write(output_buffer)
+        output_buffer.seek(0)
         
-        st.info(f"Tamanho após compressão simples: {tamanho_comprimido:.2f} MB")
-        
-        # Se atingiu o alvo, retorna
-        if tamanho_comprimido <= tamanho_alvo_mb:
-            reducao = ((tamanho_atual - tamanho_comprimido) / tamanho_atual) * 100
-            return compressed_bytes, tamanho_comprimido, reducao
-        
-        # Tentativa 2: Reduz qualidade das imagens (se houver)
-        # Para uma implementação mais avançada, você precisaria do pdf2image
-        # Mas para esta versão, retornamos o melhor possível
-        
-        st.warning(f"Compressão máxima alcançada: {tamanho_comprimido:.2f} MB")
-        reducao = ((tamanho_atual - tamanho_comprimido) / tamanho_atual) * 100
-        return compressed_bytes, tamanho_comprimido, reducao
+        return output_buffer.getvalue()
         
     except Exception as e:
         st.error(f"Erro na compressão: {str(e)}")
-        return pdf_bytes, tamanho_atual, 0
+        return pdf_bytes
 
 # ============================================================================
 # SIDEBAR - MENU PRINCIPAL
@@ -593,10 +518,6 @@ if opcao == "Converter Imagens para PDF":
             value="Alta"
         )
         
-        # Mapeia qualidade para valor numérico
-        qualidade_map = {"Baixa": 60, "Média": 75, "Alta": 85}
-        qualidade_valor = qualidade_map[qualidade]
-        
         orientacao = st.radio(
             "Orientação:",
             ["Retrato", "Paisagem"],
@@ -610,13 +531,11 @@ if opcao == "Converter Imagens para PDF":
                     imagens_bytes = []
                     for file in uploaded_files:
                         file_bytes = file.getvalue()
-                        # Converte bytearray para bytes se necessário
-                        if isinstance(file_bytes, bytearray):
-                            file_bytes = bytes(file_bytes)
+                        file_bytes = garantir_bytes(file_bytes)
                         imagens_bytes.append(file_bytes)
                     
                     # Cria o PDF
-                    pdf_bytes = criar_pdf_de_imagens(imagens_bytes, qualidade_valor)
+                    pdf_bytes = criar_pdf_de_imagens_simples(imagens_bytes)
                     
                     if pdf_bytes is None:
                         st.error("Falha ao criar o PDF. Verifique as imagens.")
@@ -641,12 +560,16 @@ if opcao == "Converter Imagens para PDF":
                             </div>
                             """, unsafe_allow_html=True)
                         
-                        # Botão de download
+                        # Garante que são bytes para download
+                        pdf_bytes_download = garantir_bytes(pdf_bytes)
+                        
+                        # Botão de download - FORMA CORRETA
                         st.download_button(
-                            label=f"Baixar PDF ({tamanho_pdf:.2f} MB)",
-                            data=pdf_bytes,
+                            label=f"📥 Baixar PDF ({tamanho_pdf:.2f} MB)",
+                            data=pdf_bytes_download,
                             file_name=nome_pdf,
-                            mime="application/pdf"
+                            mime="application/pdf",
+                            key="download_pdf_btn"
                         )
                         
                 except Exception as e:
@@ -672,9 +595,7 @@ elif opcao == "Comprimir Arquivo PDF":
         if uploaded_pdf:
             # Calcula tamanho original
             pdf_bytes = uploaded_pdf.getvalue()
-            if isinstance(pdf_bytes, bytearray):
-                pdf_bytes = bytes(pdf_bytes)
-            
+            pdf_bytes = garantir_bytes(pdf_bytes)
             tamanho_original = len(pdf_bytes) / (1024 * 1024)
             
             st.markdown(f"""
@@ -690,7 +611,6 @@ elif opcao == "Comprimir Arquivo PDF":
         # Opções de tamanho pré-definidas
         st.markdown("**Escolha o tamanho desejado:**")
         
-        # Cria opções de tamanho
         tamanhos_opcoes = {
             "Muito Pequeno (< 1 MB)": 1.0,
             "Pequeno (1-2 MB)": 2.0,
@@ -725,21 +645,13 @@ elif opcao == "Comprimir Arquivo PDF":
                 reducao_necessaria = ((tamanho_original - tamanho_alvo_mb) / tamanho_original) * 100
                 st.warning(f"Necessário reduzir: {reducao_necessaria:.1f}%")
         
-        manter_qualidade = st.checkbox("Manter qualidade máxima possível", value=True)
-        
         if uploaded_pdf and st.button("Comprimir PDF", key="btn_comprimir_pdf"):
             with st.spinner("Comprimindo arquivo..."):
                 try:
-                    # Barra de progresso
-                    progress_bar = st.progress(0)
-                    
                     # Comprime o PDF
-                    pdf_comprimido, tamanho_novo, reducao = comprimir_pdf_com_tamanho_alvo(
-                        pdf_bytes, 
-                        tamanho_alvo_mb
-                    )
-                    
-                    progress_bar.progress(100)
+                    pdf_comprimido = comprimir_pdf_simples(pdf_bytes)
+                    tamanho_novo = len(pdf_comprimido) / (1024 * 1024)
+                    reducao = ((tamanho_original - tamanho_novo) / tamanho_original) * 100
                     
                     # Mostra resultados
                     st.markdown("**Resultado da compressão:**")
@@ -779,10 +691,11 @@ elif opcao == "Comprimir Arquivo PDF":
                     # Botão de download
                     nome_comprimido = f"comprimido_{uploaded_pdf.name}"
                     st.download_button(
-                        label=f"Baixar PDF Comprimido ({tamanho_novo:.2f} MB)",
-                        data=pdf_comprimido,
+                        label=f"📥 Baixar PDF Comprimido ({tamanho_novo:.2f} MB)",
+                        data=garantir_bytes(pdf_comprimido),
                         file_name=nome_comprimido,
-                        mime="application/pdf"
+                        mime="application/pdf",
+                        key="download_compressed_pdf_btn"
                     )
                     
                 except Exception as e:
@@ -832,12 +745,6 @@ else:  # Compactar Arquivos em ZIP
             value=f"Arquivos_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
         )
         
-        # Opções de tamanho para o ZIP
-        tamanho_maximo_zip = st.selectbox(
-            "Tamanho máximo do ZIP:",
-            ["Sem limite", "10 MB", "25 MB", "50 MB", "100 MB", "Personalizado"]
-        )
-        
         nivel_compressao = st.selectbox(
             "Nível de compressão:",
             ["Normal", "Máximo"]
@@ -851,30 +758,12 @@ else:  # Compactar Arquivos em ZIP
                     with zipfile.ZipFile(zip_buffer, 'w', 
                         zipfile.ZIP_DEFLATED if nivel_compressao == "Máximo" else zipfile.ZIP_STORED) as zipf:
                         for uploaded_file in uploaded_files:
-                            zipf.writestr(uploaded_file.name, uploaded_file.getvalue())
+                            file_data = garantir_bytes(uploaded_file.getvalue())
+                            zipf.writestr(uploaded_file.name, file_data)
                     
                     zip_buffer.seek(0)
                     zip_bytes = zip_buffer.getvalue()
                     tamanho_zip = len(zip_bytes) / 1024
-                    
-                    # Verifica tamanho máximo
-                    tamanho_maximo_map = {
-                        "Sem limite": float('inf'),
-                        "10 MB": 10 * 1024,
-                        "25 MB": 25 * 1024,
-                        "50 MB": 50 * 1024,
-                        "100 MB": 100 * 1024
-                    }
-                    
-                    if tamanho_maximo_zip == "Personalizado":
-                        tamanho_maximo_kb = st.number_input(
-                            "Tamanho máximo em MB:",
-                            min_value=1,
-                            max_value=500,
-                            value=10
-                        ) * 1024
-                    else:
-                        tamanho_maximo_kb = tamanho_maximo_map.get(tamanho_maximo_zip, float('inf'))
                     
                     # Métricas
                     col_zip1, col_zip2 = st.columns(2)
@@ -895,18 +784,13 @@ else:  # Compactar Arquivos em ZIP
                         </div>
                         """, unsafe_allow_html=True)
                     
-                    # Verifica se está dentro do limite
-                    if tamanho_zip > tamanho_maximo_kb:
-                        st.error(f"⚠️ ZIP muito grande! {tamanho_zip/1024:.1f} MB (limite: {tamanho_maximo_kb/1024:.1f} MB)")
-                    else:
-                        st.success(f"✅ ZIP dentro do limite: {tamanho_zip/1024:.1f} MB")
-                    
                     # Botão de download
                     st.download_button(
-                        label="Baixar Arquivo ZIP",
-                        data=zip_bytes,
+                        label="📥 Baixar Arquivo ZIP",
+                        data=garantir_bytes(zip_bytes),
                         file_name=nome_zip,
-                        mime="application/zip"
+                        mime="application/zip",
+                        key="download_zip_btn"
                     )
                     
                 except Exception as e:
