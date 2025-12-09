@@ -8,7 +8,250 @@ from PIL import Image
 from fpdf import FPDF
 from PyPDF2 import PdfReader, PdfWriter
 
-# Adicione esta função após as importações
+
+import streamlit as st
+import time
+
+# ============================================================================
+# POPUP MODAL PERSONALIZADO
+# ============================================================================
+def mostrar_popup_especial():
+    """Mostra um popup elegante apenas na primeira visita"""
+    
+    # Só mostra se ainda não foi visto nesta sessão
+    if 'popup_visto' not in st.session_state:
+        st.session_state.popup_visto = True
+        
+        # CSS para o modal
+        st.markdown("""
+        <style>
+            /* Modal container */
+            .modal-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.7);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 9999;
+                animation: fadeIn 0.3s ease;
+            }
+            
+            /* Modal content */
+            .modal-content {
+                background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+                width: 90%;
+                max-width: 500px;
+                border-radius: 16px;
+                padding: 0;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                overflow: hidden;
+                animation: slideUp 0.4s ease;
+                position: relative;
+            }
+            
+            /* Modal header */
+            .modal-header {
+                background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+                padding: 1.8rem 2rem;
+                color: white;
+                text-align: center;
+                position: relative;
+            }
+            
+            .modal-header h2 {
+                margin: 0;
+                font-size: 1.8rem;
+                font-weight: 600;
+                letter-spacing: -0.5px;
+            }
+            
+            .modal-header p {
+                margin: 0.5rem 0 0 0;
+                opacity: 0.9;
+                font-weight: 300;
+            }
+            
+            /* Modal body */
+            .modal-body {
+                padding: 2rem;
+                text-align: center;
+            }
+            
+            .message-text {
+                color: #333;
+                font-size: 1.1rem;
+                line-height: 1.6;
+                margin-bottom: 1.5rem;
+            }
+            
+            .signature {
+                color: #666;
+                font-style: italic;
+                margin-top: 1.5rem;
+                padding-top: 1.5rem;
+                border-top: 1px solid #e0e0e0;
+            }
+            
+            /* Close button */
+            .close-btn {
+                position: absolute;
+                top: 15px;
+                right: 15px;
+                background: rgba(255, 255, 255, 0.2);
+                border: none;
+                color: white;
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                cursor: pointer;
+                font-size: 18px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s;
+            }
+            
+            .close-btn:hover {
+                background: rgba(255, 255, 255, 0.3);
+                transform: rotate(90deg);
+            }
+            
+            /* Heart animation */
+            .heart {
+                color: #e91e63;
+                display: inline-block;
+                animation: heartbeat 1.5s infinite;
+                font-size: 1.5rem;
+                margin: 0 5px;
+            }
+            
+            @keyframes heartbeat {
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.2); }
+            }
+            
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            
+            @keyframes slideUp {
+                from { 
+                    opacity: 0;
+                    transform: translateY(30px);
+                }
+                to { 
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            
+            /* Feature highlights */
+            .feature-highlight {
+                display: inline-block;
+                background: #e8f4fd;
+                color: #1a73e8;
+                padding: 6px 12px;
+                border-radius: 20px;
+                font-size: 0.9rem;
+                margin: 5px;
+                border: 1px solid #d2e3fc;
+            }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # HTML do modal
+        st.markdown("""
+        <div class="modal-overlay" id="specialModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button class="close-btn" onclick="document.getElementById('specialModal').style.display='none'">×</button>
+                    <h2>Olá, Francisco Matos</h2>
+                    <p>Uma mensagem especial para você</p>
+                </div>
+                
+                <div class="modal-body">
+                    <div class="message-text">
+                        <p>Sabendo das suas necessidades no trabalho, desenvolvi esta ferramenta exclusiva para facilitar seu dia a dia.</p>
+                        
+                        <p>Agora você pode converter imagens para PDF, comprimir arquivos e criar ZIPs de qualquer lugar, a qualquer momento.</p>
+                        
+                        <div style="margin: 1.5rem 0;">
+                            <span class="feature-highlight">Conversor de Imagens</span>
+                            <span class="feature-highlight">Compressor de PDF</span>
+                            <span class="feature-highlight">Compactador ZIP</span>
+                        </div>
+                        
+                        <p>Espero que seja muito útil para você!</p>
+                    </div>
+                    
+                    <div class="signature">
+                        <span class="heart">❤</span>
+                        Com carinho, Adrielly
+                        <span class="heart">❤</span>
+                    </div>
+                    
+                    <div style="margin-top: 1.5rem;">
+                        <button style="
+                            background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+                            color: white;
+                            border: none;
+                            padding: 10px 30px;
+                            border-radius: 25px;
+                            font-weight: 500;
+                            cursor: pointer;
+                            transition: all 0.3s;
+                        " 
+                        onclick="document.getElementById('specialModal').style.display='none'">
+                            Começar a usar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            // Fecha modal ao clicar fora
+            document.getElementById('specialModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.style.display = 'none';
+                }
+            });
+            
+            // Fecha com ESC
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    document.getElementById('specialModal').style.display = 'none';
+                }
+            });
+        </script>
+        """, unsafe_allow_html=True)
+        
+        # Pequeno delay para garantir que o modal carregue
+        time.sleep(0.1)
+
+# ============================================================================
+# NO SEU CÓDIGO PRINCIPAL, ADICIONE ISSO NO INÍCIO:
+# ============================================================================
+# Logo após set_page_config e antes de qualquer coisa:
+
+# Configuração da página
+st.set_page_config(
+    page_title="Conversor de Arquivos - Francisco Matos",
+    page_icon="📄",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# MOSTRAR POPUP (só na primeira vez)
+mostrar_popup_especial()
+
+# Resto do seu código continua aqui...
 def mostrar_mensagem_especial():
     if 'mensagem_vista' not in st.session_state:
         st.session_state.mensagem_vista = True
@@ -25,7 +268,7 @@ def mostrar_mensagem_especial():
             <h3 style='margin: 0 0 1rem 0;'>Para Você, Francisco</h3>
             <p style='margin: 0; font-size: 1.1rem;'>
                 Uma ferramenta feita com carinho para facilitar seu trabalho.<br>
-                Espero que seja útil no seu dia a dia! Te amo. 
+                Espero que seja útil no seu dia a dia!
             </p>
             <p style='margin: 1rem 0 0 0; font-style: italic;'>— Com amor, Adrielly</p>
         </div>
@@ -33,6 +276,7 @@ def mostrar_mensagem_especial():
 
 # E chame a função antes do cabeçalho:
 mostrar_mensagem_especial()
+
 
 # ============================================================================
 # CONFIGURAÇÃO DA PÁGINA
