@@ -9,20 +9,6 @@ from fpdf import FPDF
 from PyPDF2 import PdfReader, PdfWriter
 import time
 
-
-# ============================================================================
-# NO SEU CÓDIGO PRINCIPAL, ADICIONE ISSO NO INÍCIO:
-# ============================================================================
-# Logo após set_page_config e antes de qualquer coisa:
-
-# Configuração da página
-st.set_page_config(
-    page_title="Conversor de Arquivos - Francisco Matos",
-    page_icon="📄",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
 def mostrar_popup_simples():
     """Versão mais simples e confiável"""
     
@@ -92,6 +78,20 @@ def mostrar_popup_simples():
 
 # Chame assim:
 mostrar_popup_simples()
+
+# ============================================================================
+# NO SEU CÓDIGO PRINCIPAL, ADICIONE ISSO NO INÍCIO:
+# ============================================================================
+# Logo após set_page_config e antes de qualquer coisa:
+
+# Configuração da página
+st.set_page_config(
+    page_title="Conversor de Arquivos - Francisco Matos",
+    page_icon="📄",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 
 
 # ============================================================================
