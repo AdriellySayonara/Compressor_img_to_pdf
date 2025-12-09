@@ -9,100 +9,125 @@ from fpdf import FPDF
 from PyPDF2 import PdfReader, PdfWriter
 import time
 
+# ============================================================================
+# CONFIGURAÇÃO DA PÁGINA (DEVE SER A PRIMEIRA COISA!)
+# ============================================================================
+st.set_page_config(
+    page_title="Conversor de Arquivos - Francisco Matos",
+    page_icon="📄",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ============================================================================
+# POPUP MODAL PERSONALIZADO
+# ============================================================================
 def mostrar_popup_simples():
     """Versão mais simples e confiável"""
     
     if 'popup_visto' not in st.session_state:
         st.session_state.popup_visto = True
         
-        # Usa columns para centralizar
-        col1, col2, col3 = st.columns([1, 2, 1])
-        
-        with col2:
-            # Container com estilo de modal
-            container = st.container()
-            with container:
-                st.markdown("""
-                <div style='
-                    background: white;
-                    border-radius: 15px;
-                    padding: 2rem;
-                    margin: 2rem 0;
-                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-                    border: 2px solid #e0e0e0;
-                    text-align: center;
-                    position: relative;
-                '>
-                    <h2 style='color: #1a237e; margin-bottom: 1rem;'>
-                        Olá, Francisco Matos
-                    </h2>
-                    
-                    <p style='color: #444; line-height: 1.6; margin-bottom: 1.5rem;'>
-                        Desenvolvi esta ferramenta pensando em facilitar seu trabalho.<br>
-                        Espero que seja muito útil para você!
-                    </p>
-                    
-                    <p style='color: #666; font-style: italic; margin-top: 1.5rem;'>
-                        — Com Amor, Adrielly
-                    </p>
-                    
-                    <div style='margin-top: 1.5rem;'>
-                        <button onclick="this.parentElement.parentElement.style.display='none'" 
-                        style='
-                            background: #1a237e;
-                            color: white;
-                            border: none;
-                            padding: 10px 30px;
-                            border-radius: 25px;
-                            cursor: pointer;
-                            font-weight: 500;
-                        '>
-                            Começar a usar
-                        </button>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        # Adiciona um overlay escuro
+        # CSS para o modal e overlay
         st.markdown("""
-        <div style='
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 9998;
-        '></div>
+        <style>
+            .popup-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 9998;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+            
+            .popup-content {
+                background: white;
+                border-radius: 15px;
+                padding: 2rem;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                border: 2px solid #e0e0e0;
+                text-align: center;
+                position: relative;
+                z-index: 9999;
+                max-width: 500px;
+                width: 90%;
+                margin: 2rem;
+                animation: popupFadeIn 0.4s ease;
+            }
+            
+            @keyframes popupFadeIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(-20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # HTML do popup
+        st.markdown("""
+        <div class="popup-overlay" id="popupOverlay">
+            <div class="popup-content">
+                <h2 style='color: #1a237e; margin-bottom: 1rem;'>
+                    Olá, Francisco Matos
+                </h2>
+                
+                <p style='color: #444; line-height: 1.6; margin-bottom: 1.5rem;'>
+                    Desenvolvi esta ferramenta pensando em facilitar seu trabalho.<br>
+                    Espero que seja muito útil para você!
+                </p>
+                
+                <p style='color: #666; font-style: italic; margin-top: 1.5rem;'>
+                    — Com Amor, Adrielly
+                </p>
+                
+                <div style='margin-top: 1.5rem;'>
+                    <button onclick="document.getElementById('popupOverlay').style.display='none'" 
+                    style='
+                        background: #1a237e;
+                        color: white;
+                        border: none;
+                        padding: 10px 30px;
+                        border-radius: 25px;
+                        cursor: pointer;
+                        font-weight: 500;
+                        font-size: 1rem;
+                    '>
+                        Começar a usar
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            // Fecha o popup ao clicar fora
+            document.getElementById('popupOverlay').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.style.display = 'none';
+                }
+            });
+            
+            // Fecha com ESC
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    document.getElementById('popupOverlay').style.display = 'none';
+                }
+            });
+        </script>
         """, unsafe_allow_html=True)
 
-# Chame assim:
+# ============================================================================
+# MOSTRAR POPUP (chamada imediatamente após a configuração)
+# ============================================================================
 mostrar_popup_simples()
-
-# ============================================================================
-# NO SEU CÓDIGO PRINCIPAL, ADICIONE ISSO NO INÍCIO:
-# ============================================================================
-# Logo após set_page_config e antes de qualquer coisa:
-
-# Configuração da página
-st.set_page_config(
-    page_title="Conversor de Arquivos - Francisco Matos",
-    page_icon="📄",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-
-
-# ============================================================================
-# CONFIGURAÇÃO DA PÁGINA
-# ============================================================================
-st.set_page_config(
-    page_title="Conversor de Arquivos - Francisco Matos",
-    page_icon="📄",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # ============================================================================
 # CSS PERSONALIZADO - ESTILO ELEGANTE
